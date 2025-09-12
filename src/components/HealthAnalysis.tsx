@@ -2,10 +2,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { CheckCircle, AlertTriangle, XCircle, Brain, TrendingUp } from "lucide-react";
+import { CheckCircle, AlertTriangle, XCircle, Brain, TrendingUp, Sprout } from "lucide-react";
+import { getPlantProfile, determineGrowthStage } from "@/lib/PlantDatabase";
 
 interface HealthAnalysisProps {
   plantData: {
+    plantType: string;
     plantHeight: number;
     leafColor: string;
     temperature: number;
@@ -20,66 +22,120 @@ interface HealthAnalysisProps {
 }
 
 const HealthAnalysis = ({ plantData }: HealthAnalysisProps) => {
-  // AI Analysis Logic (simplified)
+  // Plant-Specific AI Analysis Logic
   const analyzeHealth = () => {
+    const plantProfile = getPlantProfile(plantData.plantType);
+    if (!plantProfile) {
+      return {
+        healthScore: 0,
+        status: "Error",
+        statusColor: "destructive",
+        issues: ["Unknown plant type selected"],
+        recommendations: ["Please select a valid plant type"],
+        growthStage: "unknown",
+        plantSpecific: null
+      };
+    }
+
     let healthScore = 100;
-    const issues = [];
-    const recommendations = [];
+    const issues: string[] = [];
+    const recommendations: string[] = [];
+    const { optimalConditions } = plantProfile;
 
-    // Temperature analysis
-    if (plantData.temperature < 15 || plantData.temperature > 35) {
-      healthScore -= 20;
-      issues.push("Temperature stress detected");
-      recommendations.push("Adjust greenhouse temperature or provide shade/heating");
-    }
-
-    // Humidity analysis
-    if (plantData.humidity < 40 || plantData.humidity > 80) {
-      healthScore -= 15;
-      issues.push("Humidity levels not optimal");
-      recommendations.push("Improve ventilation or irrigation system");
-    }
-
-    // Soil moisture analysis
-    if (plantData.soilMoisture < 30) {
-      healthScore -= 25;
-      issues.push("Soil moisture too low - drought stress");
-      recommendations.push("Increase irrigation frequency");
-    } else if (plantData.soilMoisture > 80) {
-      healthScore -= 20;
-      issues.push("Soil moisture too high - root rot risk");
-      recommendations.push("Improve drainage and reduce watering");
+    // Growth Stage Analysis
+    const growthStage = determineGrowthStage(plantProfile, plantData.plantHeight);
+    
+    // Plant-Specific Temperature Analysis
+    if (plantData.temperature < optimalConditions.temperature.min || plantData.temperature > optimalConditions.temperature.max) {
+      const severity = Math.abs(plantData.temperature - ((optimalConditions.temperature.min + optimalConditions.temperature.max) / 2));
+      healthScore -= Math.min(30, severity * 2);
+      issues.push(`Temperature stress for ${plantProfile.name} (optimal: ${optimalConditions.temperature.min}-${optimalConditions.temperature.max}°C)`);
+      
+      if (plantData.temperature < optimalConditions.temperature.min) {
+        recommendations.push(`Increase temperature - ${plantProfile.name} needs warmth for optimal growth`);
+      } else {
+        recommendations.push(`Reduce temperature - ${plantProfile.name} is experiencing heat stress`);
+      }
     }
 
-    // Nutrient analysis
-    const { nitrogen, phosphorus, potassium } = plantData.soilNutrients;
-    if (nitrogen < 15) {
-      healthScore -= 15;
-      issues.push("Nitrogen deficiency");
-      recommendations.push("Apply nitrogen-rich fertilizer");
-    }
-    if (phosphorus < 10) {
-      healthScore -= 10;
-      issues.push("Phosphorus deficiency");
-      recommendations.push("Add phosphorus supplement to soil");
-    }
-    if (potassium < 12) {
-      healthScore -= 10;
-      issues.push("Potassium deficiency");
-      recommendations.push("Apply potassium-rich fertilizer");
+    // Plant-Specific Humidity Analysis
+    if (plantData.humidity < optimalConditions.humidity.min || plantData.humidity > optimalConditions.humidity.max) {
+      const severity = Math.abs(plantData.humidity - ((optimalConditions.humidity.min + optimalConditions.humidity.max) / 2));
+      healthScore -= Math.min(25, severity * 0.5);
+      issues.push(`Humidity levels not optimal for ${plantProfile.name} (optimal: ${optimalConditions.humidity.min}-${optimalConditions.humidity.max}%)`);
+      
+      if (plantData.humidity < optimalConditions.humidity.min) {
+        recommendations.push(`Increase humidity - ${plantProfile.name} requires more moisture in air`);
+      } else {
+        recommendations.push(`Reduce humidity - risk of fungal diseases in ${plantProfile.name}`);
+      }
     }
 
-    // Leaf color analysis
-    if (plantData.leafColor === "yellow" || plantData.leafColor === "brown") {
+    // Plant-Specific Soil Moisture Analysis
+    if (plantData.soilMoisture < optimalConditions.soilMoisture.min) {
       healthScore -= 30;
-      issues.push("Unhealthy leaf coloration detected");
-      recommendations.push("Check for diseases and nutrient deficiencies");
+      issues.push(`Soil moisture too low for ${plantProfile.name} - drought stress`);
+      recommendations.push(`Increase irrigation - ${plantProfile.name} needs consistent moisture`);
+    } else if (plantData.soilMoisture > optimalConditions.soilMoisture.max) {
+      healthScore -= 25;
+      issues.push(`Soil moisture too high for ${plantProfile.name} - root rot risk`);
+      recommendations.push(`Improve drainage - ${plantProfile.name} is sensitive to waterlogging`);
+    }
+
+    // Plant-Specific Nutrient Analysis
+    const { nitrogen, phosphorus, potassium } = plantData.soilNutrients;
+    const { nutrients } = optimalConditions;
+    
+    if (nitrogen < nutrients.nitrogen.min) {
+      healthScore -= 20;
+      issues.push(`Nitrogen deficiency for ${plantProfile.name}`);
+      recommendations.push(`Apply nitrogen fertilizer - ${plantProfile.name} requires ${nutrients.nitrogen.min}-${nutrients.nitrogen.max} ppm`);
+    } else if (nitrogen > nutrients.nitrogen.max) {
+      healthScore -= 15;
+      issues.push(`Excess nitrogen for ${plantProfile.name}`);
+      recommendations.push(`Reduce nitrogen application - may delay flowering in ${plantProfile.name}`);
+    }
+
+    if (phosphorus < nutrients.phosphorus.min) {
+      healthScore -= 15;
+      issues.push(`Phosphorus deficiency for ${plantProfile.name}`);
+      recommendations.push(`Add phosphorus - essential for ${plantProfile.name} root development`);
+    }
+
+    if (potassium < nutrients.potassium.min) {
+      healthScore -= 15;
+      issues.push(`Potassium deficiency for ${plantProfile.name}`);
+      recommendations.push(`Apply potassium fertilizer - improves ${plantProfile.name} disease resistance`);
+    }
+
+    // Plant-Specific Leaf Color Analysis
+    if (plantProfile.leafColorIndicators.diseased.includes(plantData.leafColor)) {
+      healthScore -= 35;
+      issues.push(`Unhealthy leaf coloration in ${plantProfile.name} - possible disease`);
+      recommendations.push(`Check for ${plantProfile.commonDiseases.join(', ')} - common in ${plantProfile.name}`);
+    } else if (plantProfile.leafColorIndicators.deficiency.includes(plantData.leafColor)) {
+      healthScore -= 20;
+      issues.push(`Nutrient deficiency symptoms in ${plantProfile.name} leaves`);
+      recommendations.push(`Investigate nutrient deficiency - ${plantProfile.name} showing deficiency signs`);
+    }
+
+    // Add plant-specific care recommendations
+    if (healthScore < 70) {
+      recommendations.push(...plantProfile.specificCare.slice(0, 2));
     }
 
     const status = healthScore >= 80 ? "Excellent" : healthScore >= 60 ? "Good" : healthScore >= 40 ? "Fair" : "Poor";
     const statusColor = healthScore >= 80 ? "success" : healthScore >= 60 ? "success" : healthScore >= 40 ? "warning" : "destructive";
 
-    return { healthScore: Math.max(0, healthScore), status, statusColor, issues, recommendations };
+    return { 
+      healthScore: Math.max(0, healthScore), 
+      status, 
+      statusColor, 
+      issues, 
+      recommendations,
+      growthStage,
+      plantSpecific: plantProfile
+    };
   };
 
   const analysis = analyzeHealth();
@@ -117,6 +173,27 @@ const HealthAnalysis = ({ plantData }: HealthAnalysisProps) => {
           <Progress value={analysis.healthScore} className="w-full" />
         </div>
 
+        {/* Plant-Specific Information */}
+        {analysis.plantSpecific && (
+          <div className="bg-gradient-growth rounded-lg p-4 text-white">
+            <div className="flex items-center gap-2 mb-3">
+              <Sprout className="h-5 w-5" />
+              <h4 className="font-semibold">{analysis.plantSpecific.name} Analysis</h4>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div>
+                <p><strong>Growth Stage:</strong> {analysis.growthStage}</p>
+                <p><strong>Category:</strong> {analysis.plantSpecific.category}</p>
+                <p><strong>Expected Height:</strong> {analysis.plantSpecific.growthStages[analysis.growthStage as keyof typeof analysis.plantSpecific.growthStages]?.heightRange?.join('-') || 'Variable'} cm</p>
+              </div>
+              <div>
+                <p><strong>Harvest Time:</strong> {analysis.plantSpecific.harvestTime}</p>
+                <p><strong>Climate:</strong> {analysis.plantSpecific.climate.join(', ')}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Parameter Analysis */}
         <div className="space-y-4">
           <h4 className="font-semibold text-earth flex items-center gap-2">
@@ -128,20 +205,44 @@ const HealthAnalysis = ({ plantData }: HealthAnalysisProps) => {
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-sm">Temperature</span>
-                <Badge variant={plantData.temperature >= 15 && plantData.temperature <= 35 ? "default" : "destructive"}>
-                  {plantData.temperature >= 15 && plantData.temperature <= 35 ? "Optimal" : "Stress"}
+                <Badge variant={
+                  analysis.plantSpecific && 
+                  plantData.temperature >= analysis.plantSpecific.optimalConditions.temperature.min && 
+                  plantData.temperature <= analysis.plantSpecific.optimalConditions.temperature.max 
+                  ? "default" : "destructive"
+                }>
+                  {analysis.plantSpecific && 
+                   plantData.temperature >= analysis.plantSpecific.optimalConditions.temperature.min && 
+                   plantData.temperature <= analysis.plantSpecific.optimalConditions.temperature.max 
+                   ? "Optimal" : "Stress"}
                 </Badge>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm">Humidity</span>
-                <Badge variant={plantData.humidity >= 40 && plantData.humidity <= 80 ? "default" : "destructive"}>
-                  {plantData.humidity >= 40 && plantData.humidity <= 80 ? "Good" : "Poor"}
+                <Badge variant={
+                  analysis.plantSpecific && 
+                  plantData.humidity >= analysis.plantSpecific.optimalConditions.humidity.min && 
+                  plantData.humidity <= analysis.plantSpecific.optimalConditions.humidity.max 
+                  ? "default" : "destructive"
+                }>
+                  {analysis.plantSpecific && 
+                   plantData.humidity >= analysis.plantSpecific.optimalConditions.humidity.min && 
+                   plantData.humidity <= analysis.plantSpecific.optimalConditions.humidity.max 
+                   ? "Good" : "Poor"}
                 </Badge>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm">Soil Moisture</span>
-                <Badge variant={plantData.soilMoisture >= 30 && plantData.soilMoisture <= 80 ? "default" : "destructive"}>
-                  {plantData.soilMoisture >= 30 && plantData.soilMoisture <= 80 ? "Adequate" : "Critical"}
+                <Badge variant={
+                  analysis.plantSpecific && 
+                  plantData.soilMoisture >= analysis.plantSpecific.optimalConditions.soilMoisture.min && 
+                  plantData.soilMoisture <= analysis.plantSpecific.optimalConditions.soilMoisture.max 
+                  ? "default" : "destructive"
+                }>
+                  {analysis.plantSpecific && 
+                   plantData.soilMoisture >= analysis.plantSpecific.optimalConditions.soilMoisture.min && 
+                   plantData.soilMoisture <= analysis.plantSpecific.optimalConditions.soilMoisture.max 
+                   ? "Adequate" : "Critical"}
                 </Badge>
               </div>
             </div>
@@ -149,20 +250,38 @@ const HealthAnalysis = ({ plantData }: HealthAnalysisProps) => {
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-sm">Nitrogen</span>
-                <Badge variant={plantData.soilNutrients.nitrogen >= 15 ? "default" : "destructive"}>
-                  {plantData.soilNutrients.nitrogen >= 15 ? "Sufficient" : "Low"}
+                <Badge variant={
+                  analysis.plantSpecific && 
+                  plantData.soilNutrients.nitrogen >= analysis.plantSpecific.optimalConditions.nutrients.nitrogen.min 
+                  ? "default" : "destructive"
+                }>
+                  {analysis.plantSpecific && 
+                   plantData.soilNutrients.nitrogen >= analysis.plantSpecific.optimalConditions.nutrients.nitrogen.min 
+                   ? "Sufficient" : "Low"}
                 </Badge>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm">Phosphorus</span>
-                <Badge variant={plantData.soilNutrients.phosphorus >= 10 ? "default" : "destructive"}>
-                  {plantData.soilNutrients.phosphorus >= 10 ? "Sufficient" : "Low"}
+                <Badge variant={
+                  analysis.plantSpecific && 
+                  plantData.soilNutrients.phosphorus >= analysis.plantSpecific.optimalConditions.nutrients.phosphorus.min 
+                  ? "default" : "destructive"
+                }>
+                  {analysis.plantSpecific && 
+                   plantData.soilNutrients.phosphorus >= analysis.plantSpecific.optimalConditions.nutrients.phosphorus.min 
+                   ? "Sufficient" : "Low"}
                 </Badge>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm">Potassium</span>
-                <Badge variant={plantData.soilNutrients.potassium >= 12 ? "default" : "destructive"}>
-                  {plantData.soilNutrients.potassium >= 12 ? "Sufficient" : "Low"}
+                <Badge variant={
+                  analysis.plantSpecific && 
+                  plantData.soilNutrients.potassium >= analysis.plantSpecific.optimalConditions.nutrients.potassium.min 
+                  ? "default" : "destructive"
+                }>
+                  {analysis.plantSpecific && 
+                   plantData.soilNutrients.potassium >= analysis.plantSpecific.optimalConditions.nutrients.potassium.min 
+                   ? "Sufficient" : "Low"}
                 </Badge>
               </div>
             </div>
@@ -198,16 +317,25 @@ const HealthAnalysis = ({ plantData }: HealthAnalysisProps) => {
           </div>
         )}
 
-        {/* Additional Tips */}
-        <div className="bg-muted rounded-lg p-4">
-          <h5 className="font-semibold text-earth mb-2">Pro Tips</h5>
-          <ul className="text-sm text-muted-foreground space-y-1">
-            <li>• Monitor parameters daily for best results</li>
-            <li>• Consider weather conditions when making adjustments</li>
-            <li>• Implement changes gradually to avoid plant shock</li>
-            <li>• Keep detailed records for seasonal comparisons</li>
-          </ul>
-        </div>
+        {/* Plant-Specific Tips */}
+        {analysis.plantSpecific && (
+          <div className="bg-muted rounded-lg p-4">
+            <h5 className="font-semibold text-earth mb-2">Plant-Specific Care Tips for {analysis.plantSpecific.name}</h5>
+            <ul className="text-sm text-muted-foreground space-y-1">
+              {analysis.plantSpecific.specificCare.map((tip, index) => (
+                <li key={index}>• {tip}</li>
+              ))}
+            </ul>
+            <div className="mt-3 pt-3 border-t border-border">
+              <p className="text-sm text-muted-foreground">
+                <strong>Common Diseases:</strong> {analysis.plantSpecific.commonDiseases.join(', ')}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                <strong>Suitable Climate:</strong> {analysis.plantSpecific.climate.join(', ')}
+              </p>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

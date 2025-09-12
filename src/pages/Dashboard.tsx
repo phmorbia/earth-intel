@@ -8,6 +8,7 @@ import { ArrowLeft } from "lucide-react";
 import { Link } from "react-router-dom";
 
 interface PlantHealthData {
+  plantType: string;
   plantHeight: number;
   leafColor: string;
   temperature: number;

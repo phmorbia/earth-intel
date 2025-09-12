@@ -5,9 +5,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { Leaf, Thermometer, Droplets, Activity } from "lucide-react";
+import { Leaf, Thermometer, Droplets, Activity, Sprout } from "lucide-react";
+import { getAllPlants } from "@/lib/PlantDatabase";
 
 interface PlantHealthData {
+  plantType: string;
   plantHeight: number;
   leafColor: string;
   temperature: number;
@@ -26,6 +28,7 @@ interface PlantHealthFormProps {
 
 const PlantHealthForm = ({ onAnalyze }: PlantHealthFormProps) => {
   const [formData, setFormData] = useState<PlantHealthData>({
+    plantType: "",
     plantHeight: 30,
     leafColor: "green",
     temperature: 25,
@@ -38,7 +41,13 @@ const PlantHealthForm = ({ onAnalyze }: PlantHealthFormProps) => {
     },
   });
 
+  const plants = getAllPlants();
+
   const handleSubmit = () => {
+    if (!formData.plantType) {
+      alert("Please select a plant type first!");
+      return;
+    }
     onAnalyze(formData);
   };
 
@@ -50,10 +59,38 @@ const PlantHealthForm = ({ onAnalyze }: PlantHealthFormProps) => {
           Plant Health Assessment
         </CardTitle>
         <CardDescription>
-          Enter your crop parameters for AI-powered health analysis
+          Select your plant type and enter parameters for specialized AI analysis
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Plant Type Selection */}
+        <div className="space-y-2">
+          <Label className="flex items-center gap-2">
+            <Sprout className="h-4 w-4 text-success" />
+            Plant Type (Required)
+          </Label>
+          <Select
+            value={formData.plantType}
+            onValueChange={(value) => setFormData(prev => ({ ...prev, plantType: value }))}
+          >
+            <SelectTrigger className="border-muted">
+              <SelectValue placeholder="Select your crop type..." />
+            </SelectTrigger>
+            <SelectContent>
+              {plants.map((plant) => (
+                <SelectItem key={plant.id} value={plant.id}>
+                  {plant.name} ({plant.category})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {formData.plantType && (
+            <p className="text-xs text-muted-foreground">
+              Selected: {plants.find(p => p.id === formData.plantType)?.name} - Specialized analysis will be applied
+            </p>
+          )}
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
             <Label htmlFor="height">Plant Height (cm)</Label>
