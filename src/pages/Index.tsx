@@ -52,15 +52,17 @@ const Index = () => {
               weather conditions, and preventive measures to maximize your harvest.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
-              <Link to="/dashboard">
+              <Link to="/login">
                 <Button size="lg" className="bg-gradient-earth hover:opacity-90 transition-opacity group">
-                  Start Monitoring
+                  Get Started
                   <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
                 </Button>
               </Link>
-              <Button size="lg" variant="outline" className="border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/10">
-                Learn More
-              </Button>
+              <Link to="/dashboard">
+                <Button size="lg" variant="outline" className="border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/10">
+                  View Demo
+                </Button>
+              </Link>
             </div>
           </div>
         </div>
